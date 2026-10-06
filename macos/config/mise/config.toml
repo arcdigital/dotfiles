@@ -1,0 +1,10 @@
+# Moving global defaults; project mise.toml takes precedence.
+[tools]
+node = "lts"
+go = "latest"
+terraform = "latest"
+kubectl = "latest"
+helm = "latest"
+aws-cli = "latest"
+pnpm = "latest"
+bun = "latest"

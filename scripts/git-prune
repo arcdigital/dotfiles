@@ -1,0 +1,24 @@
+#!/bin/bash
+# Preserve the original merged + squash-merged workflow, including checkout.
+set -euo pipefail
+action=$1; target=${2:-main}
+[[ $target != -* ]] || { echo 'Expected a target branch, not an option.' >&2; exit 2; }
+git checkout --quiet "$target" --
+target_commit=$(git rev-parse HEAD)
+current_ref=$(git symbolic-ref --quiet HEAD || true)
+while IFS= read -r ref; do
+    [[ $ref != "$current_ref" ]] || continue
+    branch=${ref#refs/heads/}; kind=merged; flag=-d
+    if ! git merge-base --is-ancestor "$ref" "$target_commit"; then
+        if base=$(git merge-base "$target_commit" "$ref"); then :; else
+            status=$?; [[ $status == 1 ]] && continue; exit "$status"
+        fi
+        tree=$(git rev-parse "$ref^{tree}")
+        comparison=$(git -c commit.gpgsign=false -c user.name=dotfiles -c user.email=dotfiles@localhost commit-tree "$tree" -p "$base" -m _)
+        result=$(git cherry "$target_commit" "$comparison")
+        [[ $result == '- '* ]] || continue
+        kind=squash-merged; flag=-D
+    fi
+    if [[ $action == prune-all ]]; then git branch "$flag" -- "$branch"
+    else echo "$branch is $kind into $target and can be deleted"; fi
+done < <(git for-each-ref --format='%(refname)' refs/heads/)

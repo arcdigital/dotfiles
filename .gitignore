@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.pyc
+.test-tools/
+.coverage
+
+*.otf
+*.ttf
+*.woff*
+*.pem
+*.key
+.env
+.env.*
+*.local

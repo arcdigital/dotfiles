@@ -1,0 +1,10 @@
+# Extra packages for the work Mac only; shared packages belong in Brewfile.
+# Add entries using brew "formula-name" or cask "app-name".
+tap "stategraph/stategraph"
+
+brew "stategraph/stategraph/stategraph", trusted: true
+
+brew "opensc"
+cask "opensc-app"
+# cask "gpg-suite-no-mail"
+cask "xca"

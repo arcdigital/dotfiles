@@ -1,0 +1,71 @@
+#!/bin/bash
+# Preflight all targets before Dotbot. Native Dotbot backs up regular files;
+# preserve conflicting symlinks too, and reject linked parents/directory conflicts.
+set -euo pipefail
+mode=$1; shift
+check_parent() {
+    local parent=$1
+    while [[ $parent != "$HOME" && $parent != / ]]; do
+        [[ ! -L $parent ]] || { echo "Resolve symlinked parent first: $parent" >&2; exit 1; }
+        parent=$(dirname -- "$parent")
+    done
+}
+for phase in check backup; do
+    args=("$@")
+    while [[ ${#args[@]} -gt 0 ]]; do
+        source=${args[0]}; destination=${args[1]}; args=("${args[@]:2}")
+        [[ -d $source ]] || continue
+        while IFS= read -r -d '' file; do
+            relative=${file#"$source/"}
+            if [[ $mode == private && $source == "$DOTFILES_PRIVATE_ROOT/machines/$DOTFILES_MACHINE_PROFILE/aws" && $relative != config ]]; then continue; fi
+            if [[ $mode == private && $source == "$DOTFILES_PRIVATE_ROOT/machines/$DOTFILES_MACHINE_PROFILE/ssh" && $relative != config && $relative != hosts ]]; then continue; fi
+            if [[ $mode == private && $source == "$DOTFILES_PRIVATE_ROOT/machines/$DOTFILES_MACHINE_PROFILE/atuin" && $relative != env.sh && $relative != ai-token-reference ]]; then continue; fi
+            if [[ $mode == private && $destination == "$HOME/.ssh" ]]; then
+                # Machine-specific files use the explicit links in the manifest.
+                if [[ $source == "$DOTFILES_PRIVATE_ROOT/ssh" && ( $relative == config || $relative == hosts ) ]]; then
+                    echo "Put machine-specific SSH settings under machines/personal/ssh or machines/work/ssh: $file" >&2; exit 1
+                fi
+                [[ $relative != config.private ]] || { echo 'Use machines/PROFILE/ssh/config for ~/.ssh/config.private.' >&2; exit 1; }
+                [[ $relative != config ]] || relative=config.private
+            fi
+            target=$destination/$relative
+            if [[ $phase == check ]]; then
+                check_parent "$(dirname -- "$target")"
+                [[ ! -d $target || -L $target ]] || { echo "Expected a file, found directory: $target" >&2; exit 1; }
+                if [[ $mode == private && $target == "$HOME/.config/"* ]]; then
+                    config_relative=${target#"$HOME/.config/"}
+                    for public in "$DOTFILES_ROOT/config/$config_relative" "$DOTFILES_ROOT/macos/config/$config_relative"; do
+                        [[ ! -e $public ]] || { echo "Public/private target overlap: $target" >&2; exit 1; }
+                    done
+                    [[ $config_relative != dotfiles/* && $config_relative != git/default-identity ]] || { echo "Reserved machine-local target: $target" >&2; exit 1; }
+                fi
+                if [[ $mode == public && $destination == "$HOME/.config" && -n ${DOTFILES_PRIVATE_ROOT:-} ]]; then
+                    [[ ! -e $DOTFILES_PRIVATE_ROOT/config/$relative ]] || { echo "Public/private target overlap: $target" >&2; exit 1; }
+                    if [[ $relative == atuin-machine/* ]]; then
+                        for machine in personal work; do
+                            [[ ! -e $DOTFILES_PRIVATE_ROOT/machines/$machine/atuin/${relative#atuin-machine/} ]] || { echo "Public/private target overlap: $target" >&2; exit 1; }
+                        done
+                    fi
+                fi
+                if [[ $mode == private && $destination == "$HOME/.ssh" ]]; then
+                    [[ ! -e $DOTFILES_ROOT/macos/ssh/$relative ]] || { echo "Public/private target overlap: $target" >&2; exit 1; }
+                fi
+                if [[ $mode == public && $destination == "$HOME/.ssh" && -n ${DOTFILES_PRIVATE_ROOT:-} ]]; then
+                    private_relative=$relative
+                    # Private ssh/config has its own target, not ~/.ssh/config.
+                    case $relative in config) private_relative=;; config.private) private_relative=config;; esac
+                    if [[ -n $private_relative ]]; then
+                        for private_ssh in "$DOTFILES_PRIVATE_ROOT/ssh" "$DOTFILES_PRIVATE_ROOT/machines/personal/ssh" "$DOTFILES_PRIVATE_ROOT/machines/work/ssh"; do
+                            [[ ! -e $private_ssh/$private_relative ]] || { echo "Public/private target overlap: $target" >&2; exit 1; }
+                        done
+                    fi
+                fi
+            elif [[ ( -L $target && $(readlink -- "$target") != "$file" ) || ( -f $target && ! -L $target && -e $target.dotbot-backup.$(date +%Y%m%d-%H%M%S) ) ]]; then
+                # mktemp reserves a unique backup name, even during rapid reruns.
+                backup=$(mktemp "$target.dotbot-backup.$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")
+                mv -f -- "$target" "$backup"
+                echo "Backup: $backup"
+            fi
+        done < <(find "$source" -type f -print0)
+    done
+done

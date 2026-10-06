@@ -1,0 +1,25 @@
+# Dotbot 1.24+ supplies backups and dry-run. Links point to ordinary source files.
+- defaults:
+    link:
+      create: true
+      relink: true
+      backup: true
+- link:
+    ~/:
+      glob: true
+      path: home/.*
+    ~/.config/:
+      glob: true
+      path: config/**
+    ~/.local/bin/:
+      glob: true
+      path: bin/*
+- link:
+    ~/.config/:
+      if: '[ "$(uname -s)" = Darwin ]'
+      glob: true
+      path: macos/config/**
+    ~/.ssh/:
+      if: '[ "$(uname -s)" = Darwin ]'
+      glob: true
+      path: macos/ssh/**

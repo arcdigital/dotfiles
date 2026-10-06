@@ -1,0 +1,7 @@
+- defaults:
+    link:
+      create: true
+      relink: true
+      backup: true
+- link:
+    ~/.config/git/default-identity: $DOTFILES_IDENTITY_SOURCE

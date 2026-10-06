@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+[[ $(uname -s) == Darwin ]] || exit 1
+backup="$HOME/.local/state/dotfiles/macos-preferences/$(date -u +%Y%m%dT%H%M%SZ)-$$"
+mkdir -p "$backup"
+chmod 700 "$backup"
+for domain in com.apple.finder com.apple.dock NSGlobalDomain; do
+    defaults export "$domain" - > "$backup/$domain.plist" || echo 'Domain was absent' > "$backup/$domain.absent"
+done
+osascript -e 'tell application "System Events" to tell appearance preferences to get dark mode' > "$backup/dark-mode.txt"
+while read -r domain key kind value; do
+    defaults write "$domain" "$key" "-$kind" "$value"
+done <<'SETTINGS'
+com.apple.finder ShowPathbar bool true
+com.apple.finder ShowStatusBar bool true
+NSGlobalDomain AppleShowAllExtensions bool true
+com.apple.finder AppleShowAllFiles bool true
+com.apple.finder _FXSortFoldersFirst bool true
+com.apple.finder FXDefaultSearchScope string SCcf
+com.apple.dock orientation string bottom
+com.apple.dock autohide bool true
+com.apple.dock show-recents bool false
+com.apple.dock mru-spaces bool false
+NSGlobalDomain KeyRepeat int 2
+NSGlobalDomain InitialKeyRepeat int 15
+NSGlobalDomain ApplePressAndHoldEnabled bool false
+NSGlobalDomain NSAutomaticCapitalizationEnabled bool false
+NSGlobalDomain NSAutomaticSpellingCorrectionEnabled bool false
+NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled bool false
+NSGlobalDomain NSAutomaticDashSubstitutionEnabled bool false
+NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled bool false
+SETTINGS
+osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true'
+echo "Previous preferences: $backup. Log out/in to activate all changes."

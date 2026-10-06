@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+script=${BASH_SOURCE[0]}
+while [[ -L $script ]]; do
+    directory=$(cd -P -- "$(dirname -- "$script")" && pwd)
+    script=$(readlink -- "$script")
+    [[ $script == /* ]] || script=$directory/$script
+done
+repo=$(cd -- "$(dirname -- "$script")/.." && pwd -P)
+exec python3 "$repo/scripts/fonts.py" "$@"

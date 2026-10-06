@@ -1,0 +1,8 @@
+{
+  "image": "nerdfonts/patcher:latest",
+  "flags": [
+    "--complete",
+    "--careful",
+    "--single-width-glyphs"
+  ]
+}

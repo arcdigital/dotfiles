@@ -1,0 +1,12 @@
+theme = Catppuccin Mocha
+# Ghostty falls back to bundled JetBrains Mono if MonoLisa is unavailable.
+font-family = "MonoLisaCode Variable"
+font-variation = wght=400
+font-variation-bold = wght=700
+font-variation-italic = wght=400
+font-variation-bold-italic = wght=700
+
+shell-integration-features = ssh-env,ssh-terminfo
+
+# Optional private additions.
+config-file = ?private.conf

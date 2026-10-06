@@ -1,0 +1,125 @@
+#!/bin/bash
+# shellcheck source-path=SCRIPTDIR
+set -euo pipefail
+# Resolve the launcher symlink so checkout location is never hard-coded.
+script=${BASH_SOURCE[0]}
+while [[ -L $script ]]; do
+    directory=$(cd -P -- "$(dirname -- "$script")" && pwd)
+    script=$(readlink -- "$script")
+    [[ $script == /* ]] || script=$directory/$script
+done
+repo=$(cd -- "$(dirname -- "$script")/.." && pwd -P)
+export DOTFILES_ROOT="$repo"
+# shellcheck source=../scripts/common.sh
+source "$repo/scripts/common.sh"
+action=${1:-help}; [[ $# == 0 ]] || shift
+case $action in
+    link|apply|diff)
+        source=$repo; mode=public; preview=
+        if [[ ${1:-} == --private ]]; then require_mac; private_source; source=$private; mode=private; shift; fi
+        [[ $# == 0 ]] || fail 'Usage: dotfiles link|diff [--private]'
+        [[ $action != diff ]] || preview=--dry-run
+        link_repo "$source" "$mode" "$preview"
+        ;;
+    private-setup)
+        require_mac
+        private="$repo/../private"
+        if [[ $# -gt 0 && $1 != -* ]]; then private=$1; shift; fi
+        [[ -d $private && -f $private/install.conf.yaml ]] || fail "Private checkout not found at $private. Use sibling public/private checkouts, or run: dotfiles private-setup PATH"
+        private=$(cd -- "$private" && pwd -P)
+        [[ $private != "$repo" && -f $private/install.conf.yaml ]] || fail 'Provide the separate private checkout.'
+        identity=$(read_setting git-identity)
+        machine_profile=$(read_setting brew-profile)
+        case $machine_profile in
+            personal|work)
+                [[ -n $identity || ! -f $private/config/git/identities/$machine_profile ]] || identity=$machine_profile
+                ;;
+        esac
+        while [[ $# -gt 0 ]]; do
+            case $1 in
+                --identity) [[ $# -gt 1 ]] || fail 'Missing identity'; identity=$2; shift 2;;
+                *) fail "Unknown option: $1";;
+            esac
+        done
+        if [[ -z $identity && -d $private/config/git/identities && -t 0 ]]; then
+            ls "$private/config/git/identities"
+            read -r -p 'Default Git identity: ' identity
+        fi
+        if [[ -d $private/config/git/identities ]]; then
+            [[ $identity != */* && -n $identity && -f $private/config/git/identities/$identity ]] || fail 'Select an existing identity with --identity NAME.'
+        fi
+        echo "Private setup: Git=${identity:-unconfigured}"
+        link_repo "$private" private
+        [[ ! -d $HOME/.ssh ]] || chmod 700 "$HOME/.ssh"
+        [[ ! -d $HOME/.aws ]] || chmod 700 "$HOME/.aws"
+        save_setting private-source "$private"
+        if [[ -n $identity ]]; then "$repo/bin/dotfiles" git-identity "$identity"; fi
+        echo 'Private files linked. Use dotfiles fonts-install to install available fonts.'
+        ;;
+    git-identity)
+        require_mac; private_source
+        identity=${1:-$(read_setting git-identity)}
+        [[ $identity != */* && -n $identity && -f $private/config/git/identities/$identity ]] || fail 'Choose a filename from the private config/git/identities directory.'
+        # Use Dotbot for the locally chosen link too; no generated identity config.
+        dotbot_command
+        export DOTFILES_IDENTITY_SOURCE="$private/config/git/identities/$identity"
+        "$dotbot" -d "$repo" -c "$repo/scripts/identity.conf.yaml"
+        save_setting git-identity "$identity"
+        echo "Git default: $identity"
+        ;;
+    atuin-ai)
+        require_mac
+        [[ -r $HOME/.config/atuin-machine/env.sh ]] || fail 'Run dotfiles private-setup to link the machine Atuin service settings.'
+        source "$repo/config/atuin/env.sh"
+        unset ATUIN_AI__API_TOKEN
+        reference=$(cat "$HOME/.config/atuin-machine/ai-token-reference" 2>/dev/null || true)
+        if [[ -n $reference ]]; then
+            [[ $reference == op://* ]] || fail 'AI token reference must start with op:// (never store a token here).'
+            export ATUIN_AI__API_TOKEN
+            ATUIN_AI__API_TOKEN=$(op read --no-newline "$reference")
+        fi
+        exec atuin ai "$@"
+        ;;
+    brew-profile) brew_profile "${1:-}"; echo "$selected";;
+    brew-install)
+        profile=
+        if [[ $# != 0 ]]; then [[ $# == 2 && $1 == --profile ]] || fail 'Usage: dotfiles brew-install [--profile personal|work]'; profile=$2; fi
+        brew_install "$profile";;
+    update)
+        sources=("$repo"); private=$(read_setting private-source); [[ -z $private ]] || sources+=("$private")
+        for source in "${sources[@]}"; do
+            [[ -z $(git -C "$source" status --porcelain) ]] || fail "Commit or stash changes first: $source"
+            git -C "$source" rev-parse --verify '@{upstream}' >/dev/null || fail "Configure an upstream first: $source"
+        done
+        for source in "${sources[@]}"; do git -C "$source" fetch; done
+        for source in "${sources[@]}"; do
+            git -C "$source" merge-base --is-ancestor HEAD '@{upstream}' || git -C "$source" merge-base --is-ancestor '@{upstream}' HEAD || fail "Diverged source: $source"
+        done
+        for source in "${sources[@]}"; do git -C "$source" merge --ff-only '@{upstream}'; done
+        "$repo/bin/dotfiles" link
+        [[ -z $private ]] || "$repo/bin/dotfiles" link --private
+        ;;
+    fonts-install) require_mac; private_source; exec python3 "$repo/scripts/fonts.py" --install "$private/fonts";;
+    macos-preferences) require_mac; exec "$repo/scripts/macos-preferences";;
+    prune-check|prune-all) exec "$repo/scripts/git-prune" "$action" "$@";;
+    pager|delta-filter)
+        if command -v delta >/dev/null; then
+            [[ $action != delta-filter ]] || exec delta --color-only
+            exec delta
+        fi
+        exec cat;;
+    doctor)
+        failed=0
+        for tool in zsh dotbot starship mise atuin; do command -v "$tool" || { echo "Missing: $tool"; failed=1; }; done
+        for path in .zshrc .zprofile .gitconfig .local/bin/dotfiles; do [[ -L $HOME/$path && -e $HOME/$path ]] || { echo "Missing/broken link: $HOME/$path"; failed=1; }; done
+        if grep -q 'nvm.sh' "$repo/home/.zshrc"; then echo 'Herd added nvm initialization. Review the Git diff and remove that block; mise owns Node.'; failed=1; fi
+        if [[ -e $repo/.git ]]; then git -C "$repo" status --short; fi
+        exit "$failed";;
+    help|-h|--help)
+        echo 'dotfiles link|diff [--private], update, doctor, brew-profile [personal|work], brew-install [--profile NAME]'
+        echo 'dotfiles private-setup [PATH] [--identity NAME] (default: ../private beside the public repo)'
+        echo 'AWS, SSH, and Atuin use the personal/work machine choice. Git can use a separate saved identity.'
+        echo 'dotfiles git-identity NAME, atuin-ai'
+        echo 'dotfiles fonts-install, macos-preferences, prune-check [target], prune-all [target]';;
+    *) fail "Unknown command: $action (use dotfiles help)";;
+esac

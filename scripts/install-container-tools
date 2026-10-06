@@ -1,0 +1,29 @@
+#!/bin/bash
+# Upstream installers own release resolution; no custom downloader framework.
+set -euo pipefail
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share/dotfiles"
+export PATH="$HOME/.local/bin:$PATH"
+stage=$(mktemp -d)
+trap 'rm -rf -- "$stage"' EXIT
+if ! command -v dotbot >/dev/null; then
+    destination="$HOME/.local/share/dotfiles/dotbot"
+    if [[ ! -d $destination/.git ]]; then
+        [[ ! -e $destination ]] || { echo "Move incomplete checkout aside and rerun: $destination" >&2; exit 1; }
+        git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/anishathalye/dotbot.git "$destination"
+    fi
+    git -C "$destination" submodule update --init --recursive
+    ln -sfn "$destination/bin/dotbot" "$HOME/.local/bin/dotbot"
+fi
+if ! command -v mise >/dev/null; then
+    curl -fsSL https://mise.run -o "$stage/mise.sh"
+    MISE_INSTALL_PATH="$HOME/.local/bin/mise" sh "$stage/mise.sh"
+fi
+if ! command -v starship >/dev/null; then
+    curl -fsSL https://raw.githubusercontent.com/starship/starship/master/install/install.sh -o "$stage/starship.sh"
+    sh "$stage/starship.sh" --yes --bin-dir "$HOME/.local/bin"
+fi
+if ! command -v atuin >/dev/null; then
+    # Binary-only installer: no shell edits, imports, hooks, login or sync.
+    curl -fsSL https://github.com/atuinsh/atuin/releases/latest/download/atuin-installer.sh -o "$stage/atuin.sh"
+    ATUIN_NO_MODIFY_PATH=1 ATUIN_INSTALL_DIR="$HOME/.local/bin" sh "$stage/atuin.sh"
+fi

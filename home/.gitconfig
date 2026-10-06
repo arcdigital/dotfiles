@@ -1,0 +1,24 @@
+[init]
+    defaultBranch = main
+[user]
+    useConfigOnly = true
+[push]
+    default = current
+    autoSetupRemote = true
+[core]
+    excludesfile = ~/.config/git/ignore
+    pager = "\"$HOME/.local/bin/dotfiles\" pager"
+[interactive]
+    diffFilter = "\"$HOME/.local/bin/dotfiles\" delta-filter"
+[alias]
+    prune-check = "!\"$HOME/.local/bin/dotfiles\" prune-check"
+    prune-all = "!\"$HOME/.local/bin/dotfiles\" prune-all"
+[delta]
+    navigate = true
+    dark = true
+    syntax-theme = Catppuccin Mocha
+    line-numbers = true
+    minus-style = syntax "#30212b"
+    plus-style = syntax "#25312d"
+[include]
+    path = ~/.config/git/private

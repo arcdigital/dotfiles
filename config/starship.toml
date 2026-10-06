@@ -1,0 +1,174 @@
+'$schema' = 'https://starship.rs/config-schema.json'
+format = '$os$directory$git_branch$git_status$c$rust$golang$nodejs$bun$php$java$kotlin$haskell$python$terraform$fill${custom.aws}${custom.kubernetes}$status$cmd_duration$jobs$line_break$character'
+add_newline = false
+palette = 'catppuccin_mocha'
+
+[character]
+success_symbol = '[❯](bold fg:green)'
+error_symbol = '[❯](bold fg:red)'
+vimcmd_symbol = '[❮](bold fg:green)'
+
+[cmd_duration]
+format = '[took ](fg:text)[ $duration]($style) '
+min_time = 3000
+style = 'fg:yellow'
+
+[directory]
+format = '[  $path]($style) '
+style = 'bold fg:blue'
+truncate_to_repo = false
+truncation_symbol = '…/'
+
+[fill]
+style = 'fg:overlay0'
+symbol = ' '
+
+[git_branch]
+format = '[on](fg:overlay2) [$symbol $branch]($style) '
+style = 'fg:green'
+symbol = ''
+
+[git_status]
+format = '[$all_status$ahead_behind]($style) '
+style = 'fg:yellow'
+
+[jobs]
+style = 'bold fg:blue'
+
+[os]
+disabled = false
+style = 'fg:text'
+
+[os.symbols]
+Linux = ' '
+Macos = ' '
+Ubuntu = ' '
+Windows = ' '
+
+[status]
+disabled = false
+symbol = '✘'
+style = 'bold fg:red'
+
+# Native project detection selects the relevant runtime versions.
+[c]
+format = '[$symbol($version)]($style) '
+symbol = ' '
+style = 'fg:green'
+
+[rust]
+format = '[$symbol($version)]($style) '
+symbol = ' '
+style = 'fg:peach'
+
+[nodejs]
+format = '[$symbol($version)]($style) '
+symbol = ' '
+style = 'fg:green'
+
+[bun]
+format = '[$symbol($version)]($style) '
+symbol = ' '
+style = 'fg:peach'
+
+[php]
+format = '[$symbol($version)]($style) '
+symbol = ' '
+style = 'fg:mauve'
+
+[golang]
+format = '[$symbol($version)]($style) '
+symbol = ' '
+style = 'fg:sky'
+
+[java]
+format = '[$symbol($version)]($style) '
+symbol = ' '
+style = 'fg:peach'
+
+[kotlin]
+format = '[$symbol($version)]($style) '
+symbol = ' '
+style = 'fg:mauve'
+
+[haskell]
+format = '[$symbol($version)]($style) '
+symbol = ' '
+style = 'fg:lavender'
+
+[python]
+format = '[$symbol($version)( \($virtualenv\))]($style) '
+symbol = ' '
+style = 'fg:yellow'
+
+[terraform]
+format = '[$symbol($version)]($style) '
+symbol = '󱁢 '
+style = 'fg:lavender'
+
+# AWS has no native project detector; this gate renders its native module.
+[custom.aws]
+detect_extensions = ['tf', 'tfvars', 'tfstate', 'tfplan']
+detect_folders = ['.terraform']
+when = 'for f in ./*.tf.json ./*.tfvars.json; do [ ! -f "$f" ] || exit 0; done; exit 1'
+command = 'starship module aws'
+shell = ['sh']
+format = '$output'
+unsafe_no_escape = true
+
+[aws]
+format = '[$symbol($profile )(\($region\))]($style) '
+symbol = ' '
+style = 'fg:peach'
+force_display = true
+
+# Recognize Helm/Kustomize projects or Kubernetes YAML, not arbitrary YAML files.
+[custom.kubernetes]
+detect_files = ['Chart.yaml', 'helmfile.yaml', 'helmfile.yml', 'kustomization.yaml', 'kustomization.yml', 'Kustomization']
+when = '''
+for f in ./*.yaml ./*.yml ./k8s/*.yaml ./k8s/*.yml ./kubernetes/*.yaml ./kubernetes/*.yml ./manifests/*.yaml ./manifests/*.yml; do
+    [ -f "$f" ] || continue
+    if grep -q '^apiVersion:' "$f" && grep -q '^kind:' "$f"; then
+        exit 0
+    fi
+done
+exit 1
+'''
+command = 'starship module kubernetes'
+shell = ['sh']
+format = '$output'
+unsafe_no_escape = true
+
+[kubernetes]
+disabled = false
+format = '[$symbol$context( \($namespace\))]($style) '
+symbol = '󱃾 '
+style = 'fg:sky'
+
+[palettes.catppuccin_mocha]
+rosewater = '#f5e0dc'
+flamingo = '#f2cdcd'
+pink = '#f5c2e7'
+mauve = '#cba6f7'
+red = '#f38ba8'
+maroon = '#eba0ac'
+peach = '#fab387'
+yellow = '#f9e2af'
+green = '#a6e3a1'
+teal = '#94e2d5'
+sky = '#89dceb'
+sapphire = '#74c7ec'
+blue = '#89b4fa'
+lavender = '#b4befe'
+text = '#cdd6f4'
+subtext1 = '#bac2de'
+subtext0 = '#a6adc8'
+overlay2 = '#9399b2'
+overlay1 = '#7f849c'
+overlay0 = '#6c7086'
+surface2 = '#585b70'
+surface1 = '#45475a'
+surface0 = '#313244'
+base = '#1e1e2e'
+mantle = '#181825'
+crust = '#11111b'

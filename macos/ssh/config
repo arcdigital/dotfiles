@@ -1,0 +1,6 @@
+# Specific host options precede defaults because OpenSSH uses the first value.
+# A missing private configuration is allowed.
+Include ~/.ssh/config.private
+
+Host *
+    IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"

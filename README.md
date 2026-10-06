@@ -40,12 +40,17 @@ Applications that write through these symlinks also edit the repository. `git di
 | `macos/config/` | Mac-only files under `~/.config/` |
 | `macos/ssh/` | Mac-only files under `~/.ssh/`; 1Password agent defaults |
 | `bin/` | Commands under `~/.local/bin/` |
+| `skills/NAME/` | Directory links under `~/.agents/skills/` and `~/.claude/skills/`; shared by Codex, Claude Code, and OpenCode |
 | Private `config/`, `ssh/` | Shared private settings and Git allowed signers |
 | Private `machines/personal/`, `machines/work/` | Selected AWS, SSH, and Atuin configuration |
 
 Private `machines/PROFILE/ssh/config` links to `~/.ssh/config.private`. The public macOS SSH config includes it before the 1Password agent default, allowing private overrides without overlapping targets.
 
 The YAML manifests use file globs, so shared configuration directories remain real directories. Public and private files coexist without one repo owning the other's files. Examples live outside managed directories.
+
+Global agent skills live in `skills/NAME/SKILL.md`, with any scripts and references beside that file. From this checkout, `npx skills add OWNER/REPO --agent codex` installs through the `.agents/skills` link into that folder. `dotfiles link` makes each skill available to Codex, Claude Code, and OpenCode. Edits are live through the directory links. [Skill management](docs/SKILLS.md) covers adding, updating, and removing skills.
+
+`CodexPlugins` lists Codex marketplace plugins. `dotfiles codex-plugins-install` registers their marketplaces and installs missing plugins, preserving existing installations and enabled/disabled choices. [Plugin management](docs/PLUGINS.md) describes restoration and updates.
 
 ## Tool ownership
 

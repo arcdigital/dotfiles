@@ -22,6 +22,7 @@ brew "ripgrep"
 brew "fd"
 brew "git-delta"
 brew "yq"
+brew "jq"
 brew "atuin"
 brew "opencode"
 

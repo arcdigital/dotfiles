@@ -7,6 +7,52 @@ from support import Isolated, ROOT, atomic_write, run
 
 
 class LinkTests(Isolated):
+    def test_shared_skill_links_preserve_existing_skills_and_backups(self):
+        source = self.source/'skills/find-skills'
+        old = self.home/'.agents/skills/find-skills'
+        atomic_write(old/'SKILL.md', b'original skill\n')
+        system = self.home/'.codex/skills/.system/fixture/SKILL.md'
+        atomic_write(system, b'bundled skill\n')
+        unrelated = self.home/'.claude/skills/unmanaged/SKILL.md'
+        atomic_write(unrelated, b'unmanaged skill\n')
+        self.command('diff')
+        self.assertFalse(old.is_symlink())
+        self.apply()
+        for agent in ('.agents', '.claude'):
+            target = self.home/agent/'skills/find-skills'
+            self.assertTrue(target.is_symlink())
+            self.assertEqual(target.resolve(), source)
+        self.assertFalse((source/'SKILL.md').is_symlink())
+        backup_root = self.home/'.local/state/dotfiles/skill-backups'
+        backups = list(backup_root.glob('*/find-skills/SKILL.md'))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_text(), 'original skill\n')
+        self.assertFalse(list(old.parent.glob('*.dotbot-backup.*')))
+        (old/'SKILL.md').write_text('edited through link\n')
+        self.assertEqual((source/'SKILL.md').read_text(), 'edited through link\n')
+        self.apply()
+        self.assertEqual(list(backup_root.glob('*/find-skills/SKILL.md')), backups)
+        self.assertEqual(system.read_text(), 'bundled skill\n')
+        self.assertEqual(unrelated.read_text(), 'unmanaged skill\n')
+
+    def test_skill_conflicts_fail_before_linking_and_broken_links_are_saved(self):
+        original = self.home/'.zshrc'
+        original.write_text('keep\n')
+        elsewhere = self.base/'elsewhere'
+        elsewhere.mkdir()
+        (self.home/'.agents').symlink_to(elsewhere)
+        self.assertNotEqual(self.command('link', check=False).returncode, 0)
+        self.assertEqual(original.read_text(), 'keep\n')
+        self.assertEqual(list(elsewhere.iterdir()), [])
+        (self.home/'.agents').unlink()
+        target = self.home/'.agents/skills/find-skills'
+        target.parent.mkdir(parents=True)
+        target.symlink_to('old-missing-skill')
+        self.apply()
+        saved = next((self.home/'.local/state/dotfiles/skill-backups').glob('*/find-skills'))
+        self.assertEqual(os.readlink(saved), 'old-missing-skill')
+        self.assertEqual(target.resolve(), self.source/'skills/find-skills')
+
     def fixture_shell(self, command):
         # Keep Homebrew tools installed on the host out of missing-tool/mock checks.
         with (self.source/'home/.zprofile').open('a') as profile:

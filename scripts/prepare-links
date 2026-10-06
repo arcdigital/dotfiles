@@ -11,6 +11,32 @@ check_parent() {
     done
 }
 for phase in check backup; do
+    if [[ $mode == public ]]; then
+        # Skills are directory links. Backups live outside discovery paths so
+        # agents cannot load a second copy of a replaced skill.
+        skill_backups="$HOME/.local/state/dotfiles/skill-backups"
+        for skill in "$DOTFILES_ROOT"/skills/*; do
+            [[ -e $skill || -L $skill ]] || continue
+            name=${skill##*/}
+            if [[ $phase == check ]]; then
+                [[ -d $skill && ! -L $skill && -f $skill/SKILL.md && ! -L $skill/SKILL.md ]] || { echo "Expected a skill directory with a regular SKILL.md: $skill" >&2; exit 1; }
+                [[ $name =~ ^[a-z0-9]+(-[a-z0-9]+)*$ && ${#name} -le 64 && $name != synced && $name != anthropic-skills ]] || { echo "Invalid or reserved skill name: $name" >&2; exit 1; }
+                check_parent "$skill_backups"
+            fi
+            for agent in .agents .claude; do
+                target="$HOME/$agent/skills/$name"
+                if [[ $phase == check ]]; then
+                    check_parent "$(dirname -- "$target")"
+                elif [[ -e $target || -L $target ]]; then
+                    [[ ! -L $target || $(readlink -- "$target") != "$skill" ]] || continue
+                    mkdir -p "$skill_backups"
+                    backup=$(mktemp -d "$skill_backups/${agent#.}-$name.$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")
+                    mv -- "$target" "$backup/$name"
+                    echo "Backup: $backup/$name"
+                fi
+            done
+        done
+    fi
     args=("$@")
     while [[ ${#args[@]} -gt 0 ]]; do
         source=${args[0]}; destination=${args[1]}; args=("${args[@]:2}")

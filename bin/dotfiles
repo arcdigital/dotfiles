@@ -85,6 +85,30 @@ case $action in
         profile=
         if [[ $# != 0 ]]; then [[ $# == 2 && $1 == --profile ]] || fail 'Usage: dotfiles brew-install [--profile personal|work]'; profile=$2; fi
         brew_install "$profile";;
+    codex-plugins-install)
+        [[ $# == 0 ]] || fail 'Usage: dotfiles codex-plugins-install'
+        for tool in codex jq; do command -v "$tool" >/dev/null || fail "Missing $tool. Run dotfiles brew-install first."; done
+        marketplaces=$(codex plugin marketplace list --json)
+        while read -r source plugin extra; do
+            [[ -n $source && $source != \#* ]] || continue
+            [[ $source =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ && $plugin == ?*@?* && -z $extra ]] || fail "Expected GitHub-owner/repo plugin@marketplace in $repo/CodexPlugins: $source $plugin $extra"
+            marketplace=${plugin##*@}
+            if jq -e --arg name "$marketplace" '.marketplaces | any(.name == $name)' <<< "$marketplaces" >/dev/null; then
+                jq -e --arg name "$marketplace" --arg url "https://github.com/$source.git" '.marketplaces | any(.name == $name and .marketplaceSource.sourceType == "git" and ((.marketplaceSource.source | rtrimstr(".git") | ascii_downcase) == ($url | rtrimstr(".git") | ascii_downcase)))' <<< "$marketplaces" >/dev/null || fail "Marketplace $marketplace already uses a different source. Inspect codex plugin marketplace list before changing CodexPlugins."
+            else
+                codex plugin marketplace add "$source"
+                marketplaces=$(codex plugin marketplace list --json)
+                jq -e --arg name "$marketplace" '.marketplaces | any(.name == $name)' <<< "$marketplaces" >/dev/null || fail "Marketplace name does not match $plugin. Check codex plugin marketplace list."
+            fi
+            installed=$(codex plugin list --marketplace "$marketplace" --json)
+            if jq -e --arg id "$plugin" '.installed | any(.pluginId == $id)' <<< "$installed" >/dev/null; then
+                echo "Already installed: $plugin"
+            else
+                codex plugin add "$plugin"
+            fi
+        done < "$repo/CodexPlugins"
+        echo 'Codex plugin list restored. Hook trust and authentication use Codex settings.'
+        ;;
     update)
         sources=("$repo"); private=$(read_setting private-source); [[ -z $private ]] || sources+=("$private")
         for source in "${sources[@]}"; do
@@ -120,6 +144,7 @@ case $action in
         echo 'dotfiles private-setup [PATH] [--identity NAME] (default: ../private beside the public repo)'
         echo 'AWS, SSH, and Atuin use the personal/work machine choice. Git can use a separate saved identity.'
         echo 'dotfiles git-identity NAME, atuin-ai'
+        echo 'dotfiles codex-plugins-install (restore entries from CodexPlugins)'
         echo 'dotfiles fonts-install, macos-preferences, prune-check [target], prune-all [target]';;
     *) fail "Unknown command: $action (use dotfiles help)";;
 esac

@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y zsh shellcheck python3-venv
+      - run: sudo apt-get update && sudo apt-get install -y zsh shellcheck python3-venv jq
       - run: python3 -m venv /tmp/dotfiles-test-venv && /tmp/dotfiles-test-venv/bin/pip install "dotbot>=1.24"
       - run: shellcheck -x install.sh install-container.sh bin/* scripts/*.sh scripts/prepare-links scripts/git-prune scripts/install-container-tools scripts/macos-preferences
       - run: DOTBOT_BIN=/tmp/dotfiles-test-venv/bin/dotbot PYTHONDONTWRITEBYTECODE=1 python3 tests/run.py

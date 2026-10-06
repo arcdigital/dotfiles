@@ -1,7 +1,60 @@
 import os
 from pathlib import Path
+import shutil
 import subprocess
 from support import Isolated, atomic_write, run
+
+class CodexPluginTests(Isolated):
+    def setUp(self):
+        jq = shutil.which('jq')
+        super().setUp()
+        if not jq: self.skipTest('jq is required for plugin restoration')
+        (self.tools/'jq').symlink_to(jq)
+        atomic_write(self.tools/'codex', b'''#!/bin/sh
+set -eu
+echo "$*" >> "$HOME/codex-calls"
+case "$*" in
+  'plugin marketplace list --json')
+    if test -f "$HOME/registered"; then
+      printf '{"marketplaces":[{"name":"ponytail","marketplaceSource":{"sourceType":"git","source":"%s"}}]}\\n' "$(cat "$HOME/registered")"
+    else echo '{"marketplaces":[]}'; fi;;
+  'plugin marketplace add DietrichGebert/ponytail')
+    echo 'https://github.com/DietrichGebert/ponytail.git' > "$HOME/registered";;
+  'plugin list --marketplace ponytail --json')
+    if test -f "$HOME/installed"; then
+      echo '{"installed":[{"pluginId":"ponytail@ponytail","enabled":false}]}'
+    else echo '{"installed":[]}'; fi;;
+  'plugin add ponytail@ponytail')
+    test ! -f "$HOME/fail-install" || exit 1
+    touch "$HOME/installed";;
+  *) exit 2;;
+esac
+''', 0o755)
+
+    def test_restore_resumes_and_preserves_installed_disabled_plugins(self):
+        (self.home/'fail-install').touch()
+        self.assertNotEqual(self.command('codex-plugins-install', check=False).returncode, 0)
+        (self.home/'fail-install').unlink()
+        self.command('codex-plugins-install')
+        self.command('codex-plugins-install')
+        calls = (self.home/'codex-calls').read_text().splitlines()
+        self.assertEqual(calls.count('plugin marketplace add DietrichGebert/ponytail'), 1)
+        self.assertEqual(calls.count('plugin add ponytail@ponytail'), 2)
+        self.assertFalse(any('upgrade' in call or 'remove' in call for call in calls))
+
+    def test_existing_marketplace_is_reused(self):
+        (self.home/'registered').write_text('https://github.com/DietrichGebert/ponytail.git')
+        self.command('codex-plugins-install')
+        calls = (self.home/'codex-calls').read_text()
+        self.assertNotIn('marketplace add', calls)
+        self.assertIn('plugin add ponytail@ponytail', calls)
+
+    def test_different_marketplace_source_stops_before_installation(self):
+        (self.home/'registered').write_text('https://github.com/other/ponytail.git')
+        result = self.command('codex-plugins-install', check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('different source', result.stderr)
+        self.assertNotIn('plugin add', (self.home/'codex-calls').read_text())
 
 class RuntimeTests(Isolated):
     def test_starship_parses_mocha_configuration(self):

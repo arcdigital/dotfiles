@@ -14,6 +14,13 @@
     ~/.local/bin/:
       glob: true
       path: bin/*
+    # Link complete skill folders so SKILL.md remains an ordinary file.
+    ~/.agents/skills/:
+      glob: true
+      path: skills/*
+    ~/.claude/skills/:
+      glob: true
+      path: skills/*
 - link:
     ~/.config/:
       if: '[ "$(uname -s)" = Darwin ]'

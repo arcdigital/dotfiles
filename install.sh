@@ -64,6 +64,7 @@ if [[ $mode == mac ]]; then
     mise trust "$HOME/.config/mise/config.toml"
     MISE_CONFIG_FILE="$HOME/.config/mise/config.toml" mise --cd "$HOME" install
     echo 'Public setup ready. See docs/ONBOARDING.md; restore the private repo after authentication.'
+    echo 'Restore Codex marketplace plugins with: dotfiles codex-plugins-install'
     if [[ -t 0 ]]; then
         read -r -p 'Apply the separate macOS preferences step now? [y/N] ' answer
         [[ $answer != y && $answer != Y ]] || "$repo/bin/dotfiles" macos-preferences
